@@ -1,5 +1,8 @@
 #[allow(unused_imports)]
-use std::io::{self, Write};
+use std::{
+    io::{self, Write},
+    process,
+};
 
 fn main() {
     loop {
@@ -17,5 +20,8 @@ fn main() {
 }
 
 fn parse_command(command: &str) {
+    if command == "exit" {
+        process::exit(0);
+    }
     println!("{command}: command not found");
 }
