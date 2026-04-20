@@ -4,6 +4,8 @@ use std::{
     process,
 };
 
+const BUILTINS: [&str; 3] = ["exit", "echo", "type"];
+
 fn main() {
     loop {
         print!("$ ");
@@ -20,11 +22,26 @@ fn main() {
 }
 
 fn parse_command(command: &str) {
-    if command == "exit" {
-        process::exit(0);
-    } else if command == "echo" || command.starts_with("echo ") {
-        println!("{}", if command == "echo" { "" } else { &command[5..] });
-    } else {
-        println!("{command}: command not found")
+    let split_index = command.find(" ");
+    let mut arguments = String::new();
+    let command = match split_index {
+        Some(index) => {
+            arguments = command[index + 1..].to_string();
+            &command[..index]
+        }
+        None => command,
+    };
+
+    match command {
+        "exit" => process::exit(0),
+        "echo" => println!("{arguments}"),
+        "type" => {
+            if BUILTINS.contains(&arguments.as_str()) {
+                println!("{arguments} is a shell builtin");
+            } else if arguments != "" {
+                println!("{arguments}: not found");
+            }
+        }
+        _ => println!("{command}: command not found"),
     }
 }
