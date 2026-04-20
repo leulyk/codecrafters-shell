@@ -22,6 +22,9 @@ fn main() {
 fn parse_command(command: &str) {
     if command == "exit" {
         process::exit(0);
+    } else if command == "echo" || command.starts_with("echo ") {
+        println!("{}", if command == "echo" { "" } else { &command[5..] });
+    } else {
+        println!("{command}: command not found")
     }
-    println!("{command}: command not found");
 }
