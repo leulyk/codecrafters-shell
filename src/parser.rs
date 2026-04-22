@@ -2,7 +2,7 @@ use std::{
     env,
     fs::{self, DirEntry},
     os::unix::fs::PermissionsExt,
-    process,
+    process::{self, Command},
 };
 
 const BUILTINS: [&str; 3] = ["exit", "echo", "type"];
@@ -36,33 +36,40 @@ pub fn parse_command(command: &str) -> Result<(), anyhow::Error> {
                 }
             }
         }
-        _ => println!("{command}: command not found"),
+        _ => {
+            if find_executable_by_name(&command).is_some() {
+                let args = arguments.split(" ").collect::<Vec<_>>();
+                Command::new(command).args(args).status()?;
+            } else {
+                println!("{command}: command not found");
+            }
+        }
     };
 
     Ok(())
 }
 
 fn find_executable_by_name(name: &str) -> Option<DirEntry> {
-    let path = env::var_os("PATH").unwrap().into_string().unwrap();
-    let path_dirs = path.split(":").collect::<Vec<_>>();
+    let paths = env::var_os("PATH")?;
 
-    for path_dir in path_dirs {
-        let dir = fs::read_dir(path_dir);
+    for path in env::split_paths(&paths) {
+        let Ok(read_directory) = fs::read_dir(path) else {
+            continue;
+        };
 
-        if let Ok(read_directory) = dir {
-            for directory_entry in read_directory {
-                if let Ok(entry) = directory_entry {
-                    let file_name = entry.file_name().into_string().unwrap();
-                    if name == file_name {
-                        if let Ok(metadata) = fs::metadata(entry.path())
-                            && metadata.permissions().mode() & 0o111 != 0
-                        {
-                            return Some(entry);
-                        }
-                    }
+        for directory_entry in read_directory {
+            let Ok(entry) = directory_entry else { continue };
+
+            if let Some(file_name) = entry.file_name().to_str()
+                && name == file_name
+            {
+                if let Ok(metadata) = entry.metadata()
+                    && metadata.permissions().mode() & 0o111 != 0
+                {
+                    return Some(entry);
                 }
             }
-        };
+        }
     }
 
     None
