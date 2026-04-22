@@ -2,16 +2,18 @@ use std::io::{self, Write};
 
 mod parser;
 
+use parser::ShellCommand;
+
 fn main() -> Result<(), anyhow::Error> {
     loop {
         print!("$ ");
         io::stdout().flush().unwrap();
 
-        let mut command = String::new();
-        io::stdin().read_line(&mut command)?;
+        let mut input = String::new();
+        io::stdin().read_line(&mut input)?;
 
-        let command = command.trim();
+        let input = input.trim();
 
-        parser::parse_command(&command)?;
+        ShellCommand::new(input).parse()?;
     }
 }

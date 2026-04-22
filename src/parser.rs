@@ -7,70 +7,103 @@ use std::{
 
 const BUILTINS: [&str; 3] = ["exit", "echo", "type"];
 
-pub fn parse_command(command: &str) -> Result<(), anyhow::Error> {
-    let split_index = command.find(" ");
-    let mut arguments = String::new();
-    let command = match split_index {
-        Some(index) => {
-            arguments = command[index + 1..].to_string();
-            &command[..index]
-        }
-        None => command,
-    };
-
-    match command {
-        "exit" => process::exit(0),
-        "echo" => println!("{arguments}"),
-        "type" => {
-            if BUILTINS.contains(&arguments.as_str()) {
-                println!("{arguments} is a shell builtin");
-            } else {
-                if let Some(entry) = find_executable_by_name(&arguments) {
-                    println!(
-                        "{} is {}",
-                        arguments,
-                        entry.path().into_os_string().into_string().unwrap()
-                    );
-                } else if arguments != "" {
-                    println!("{arguments}: not found");
-                }
-            }
-        }
-        _ => {
-            if find_executable_by_name(&command).is_some() {
-                let args = arguments.split(" ").collect::<Vec<_>>();
-                Command::new(command).args(args).status()?;
-            } else {
-                println!("{command}: command not found");
-            }
-        }
-    };
-
-    Ok(())
+pub struct ShellCommand<'a> {
+    command: &'a str,
+    args: Vec<&'a str>,
+    command_type: Option<CommandType>,
 }
 
-fn find_executable_by_name(name: &str) -> Option<DirEntry> {
-    let paths = env::var_os("PATH")?;
+pub enum CommandType {
+    Builtin(Builtins),
+    Executable,
+}
 
-    for path in env::split_paths(&paths) {
-        let Ok(read_directory) = fs::read_dir(path) else {
-            continue;
+pub enum Builtins {
+    Exit,
+    Echo,
+    Type,
+}
+
+impl<'a> ShellCommand<'a> {
+    pub fn new(input: &'a str) -> Self {
+        let mut all_args = input.split(" ");
+        let command = all_args.next().unwrap_or("");
+        let args = all_args.collect::<Vec<_>>();
+
+        let command_type = if BUILTINS.contains(&command) {
+            match command {
+                "exit" => Some(CommandType::Builtin(Builtins::Exit)),
+                "echo" => Some(CommandType::Builtin(Builtins::Echo)),
+                "type" => Some(CommandType::Builtin(Builtins::Type)),
+                _ => None,
+            }
+        } else if Self::is_executable(command).is_some() {
+            Some(CommandType::Executable)
+        } else {
+            None
         };
 
-        for directory_entry in read_directory {
-            let Ok(entry) = directory_entry else { continue };
-
-            if let Some(file_name) = entry.file_name().to_str()
-                && name == file_name
-            {
-                if let Ok(metadata) = entry.metadata()
-                    && metadata.permissions().mode() & 0o111 != 0
-                {
-                    return Some(entry);
-                }
-            }
+        Self {
+            command,
+            args,
+            command_type,
         }
     }
 
-    None
+    pub fn parse(&self) -> Result<(), anyhow::Error> {
+        let args_str = self.args.join(" ");
+        match &self.command_type {
+            Some(CommandType::Builtin(b)) => match b {
+                Builtins::Exit => process::exit(0),
+                Builtins::Echo => println!("{}", args_str),
+                Builtins::Type => {
+                    if BUILTINS.contains(&args_str.as_str()) {
+                        println!("{args_str} is a shell builtin");
+                    } else {
+                        if let Some(entry) = Self::is_executable(&args_str) {
+                            println!(
+                                "{} is {}",
+                                args_str,
+                                entry.path().into_os_string().into_string().unwrap()
+                            );
+                        } else if args_str != "" {
+                            println!("{args_str}: not found");
+                        }
+                    }
+                }
+            },
+            Some(CommandType::Executable) => {
+                Command::new(self.command).args(&self.args).status()?;
+            }
+            None => println!("{}: command not found", self.command),
+        };
+
+        Ok(())
+    }
+
+    fn is_executable(name: &str) -> Option<DirEntry> {
+        let paths = env::var_os("PATH")?;
+
+        for path in env::split_paths(&paths) {
+            let Ok(read_directory) = fs::read_dir(path) else {
+                continue;
+            };
+
+            for directory_entry in read_directory {
+                let Ok(entry) = directory_entry else { continue };
+
+                if let Some(file_name) = entry.file_name().to_str()
+                    && name == file_name
+                {
+                    if let Ok(metadata) = entry.metadata()
+                        && metadata.permissions().mode() & 0o111 != 0
+                    {
+                        return Some(entry);
+                    }
+                }
+            }
+        }
+
+        None
+    }
 }
