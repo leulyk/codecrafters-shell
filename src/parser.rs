@@ -5,7 +5,7 @@ use std::{
     process::{self, Command},
 };
 
-const BUILTINS: [&str; 3] = ["exit", "echo", "type"];
+const BUILTINS: [&str; 5] = ["exit", "echo", "type", "pwd", "cd"];
 
 pub struct ShellCommand<'a> {
     command: &'a str,
@@ -22,6 +22,8 @@ pub enum Builtins {
     Exit,
     Echo,
     Type,
+    Pwd,
+    Cd,
 }
 
 impl<'a> ShellCommand<'a> {
@@ -32,6 +34,8 @@ impl<'a> ShellCommand<'a> {
 
         let command_type = if BUILTINS.contains(&command) {
             match command {
+                "cd" => Some(CommandType::Builtin(Builtins::Cd)),
+                "pwd" => Some(CommandType::Builtin(Builtins::Pwd)),
                 "exit" => Some(CommandType::Builtin(Builtins::Exit)),
                 "echo" => Some(CommandType::Builtin(Builtins::Echo)),
                 "type" => Some(CommandType::Builtin(Builtins::Type)),
@@ -71,6 +75,10 @@ impl<'a> ShellCommand<'a> {
                         }
                     }
                 }
+                Builtins::Pwd => {
+                    println!("{}", env::current_dir()?.display())
+                }
+                Builtins::Cd => {}
             },
             Some(CommandType::Executable) => {
                 Command::new(self.command).args(&self.args).status()?;
