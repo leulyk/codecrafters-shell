@@ -1,10 +1,6 @@
-#[allow(unused_imports)]
-use std::{
-    io::{self, Write},
-    process,
-};
+use std::io::{self, Write};
 
-const BUILTINS: [&str; 3] = ["exit", "echo", "type"];
+mod parser;
 
 fn main() {
     loop {
@@ -17,31 +13,7 @@ fn main() {
             .expect("Failed to read from stdin...");
 
         let command = command.trim();
-        parse_command(&command);
-    }
-}
 
-fn parse_command(command: &str) {
-    let split_index = command.find(" ");
-    let mut arguments = String::new();
-    let command = match split_index {
-        Some(index) => {
-            arguments = command[index + 1..].to_string();
-            &command[..index]
-        }
-        None => command,
-    };
-
-    match command {
-        "exit" => process::exit(0),
-        "echo" => println!("{arguments}"),
-        "type" => {
-            if BUILTINS.contains(&arguments.as_str()) {
-                println!("{arguments} is a shell builtin");
-            } else if arguments != "" {
-                println!("{arguments}: not found");
-            }
-        }
-        _ => println!("{command}: command not found"),
+        let _ = parser::parse_command(&command);
     }
 }
