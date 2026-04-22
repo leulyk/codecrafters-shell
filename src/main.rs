@@ -14,6 +14,6 @@ fn main() -> Result<(), anyhow::Error> {
 
         let input = input.trim();
 
-        ShellCommand::new(input).parse()?;
+        ShellCommand::new(input).run()?;
     }
 }

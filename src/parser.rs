@@ -54,37 +54,54 @@ impl<'a> ShellCommand<'a> {
         }
     }
 
-    pub fn parse(&self) -> Result<(), anyhow::Error> {
-        let args_str = self.args.join(" ");
+    pub fn run(&self) -> Result<(), anyhow::Error> {
         match &self.command_type {
             Some(CommandType::Builtin(b)) => match b {
                 Builtins::Exit => process::exit(0),
-                Builtins::Echo => println!("{}", args_str),
-                Builtins::Type => {
-                    if BUILTINS.contains(&args_str.as_str()) {
-                        println!("{args_str} is a shell builtin");
-                    } else {
-                        if let Some(entry) = Self::is_executable(&args_str) {
-                            println!(
-                                "{} is {}",
-                                args_str,
-                                entry.path().into_os_string().into_string().unwrap()
-                            );
-                        } else if args_str != "" {
-                            println!("{args_str}: not found");
-                        }
-                    }
-                }
-                Builtins::Pwd => {
-                    println!("{}", env::current_dir()?.display())
-                }
-                Builtins::Cd => {}
+                Builtins::Echo => println!("{}", self.args.join(" ")),
+                Builtins::Type => self.parse_type(),
+                Builtins::Pwd => println!("{}", env::current_dir()?.display()),
+                Builtins::Cd => self.handle_directory_change()?,
             },
             Some(CommandType::Executable) => {
                 Command::new(self.command).args(&self.args).status()?;
             }
             None => println!("{}: command not found", self.command),
         };
+
+        Ok(())
+    }
+
+    fn parse_type(&self) {
+        let args_str = self.args.join(" ");
+
+        if BUILTINS.contains(&args_str.as_str()) {
+            println!("{args_str} is a shell builtin");
+        } else {
+            if let Some(entry) = Self::is_executable(&args_str) {
+                println!(
+                    "{} is {}",
+                    args_str,
+                    entry.path().into_os_string().into_string().unwrap()
+                );
+            } else if args_str != "" {
+                println!("{args_str}: not found");
+            }
+        }
+    }
+
+    fn handle_directory_change(&self) -> Result<(), anyhow::Error> {
+        match self.args.len() {
+            0 => env::set_current_dir("/home")?,
+            1 => {
+                if self.args[0].starts_with("/") {
+                    if env::set_current_dir(self.args[0]).is_err() {
+                        println!("cd: {}: No such file or directory", self.args[0]);
+                    }
+                }
+            }
+            _ => println!("Too many args for cd command"),
+        }
 
         Ok(())
     }
