@@ -94,11 +94,9 @@ impl<'a> ShellCommand<'a> {
         match self.args.len() {
             0 => env::set_current_dir("/home")?,
             1 => {
-                if self.args[0].starts_with("/") {
-                    if env::set_current_dir(self.args[0]).is_err() {
-                        println!("cd: {}: No such file or directory", self.args[0]);
-                    }
-                }
+                env::set_current_dir(self.args[0]).unwrap_or_else(|_| {
+                    println!("cd: {}: No such file or directory", self.args[0])
+                });
             }
             _ => println!("Too many args for cd command"),
         }
