@@ -1,7 +1,9 @@
+use anyhow::{Result, anyhow};
 use std::{
     env,
     fs::{self, DirEntry},
     os::unix::fs::PermissionsExt,
+    path::PathBuf,
     process::{self, Command},
 };
 
@@ -9,7 +11,7 @@ const BUILTINS: [&str; 5] = ["exit", "echo", "type", "pwd", "cd"];
 
 pub struct ShellCommand<'a> {
     command: &'a str,
-    args: Vec<&'a str>,
+    args: Vec<String>,
     command_type: Option<CommandType>,
 }
 
@@ -28,9 +30,12 @@ pub enum Builtins {
 
 impl<'a> ShellCommand<'a> {
     pub fn new(input: &'a str) -> Self {
-        let mut all_args = input.split(" ");
-        let command = all_args.next().unwrap_or("");
-        let args = all_args.collect::<Vec<_>>();
+        let command_delim_index = input.find(" ");
+        let command = &input[..command_delim_index.unwrap_or(input.len())];
+        let args = match command_delim_index {
+            Some(index) => Self::tokenize_args(&input[index + 1..]),
+            None => vec![],
+        };
 
         let command_type = if BUILTINS.contains(&command) {
             match command {
@@ -54,7 +59,7 @@ impl<'a> ShellCommand<'a> {
         }
     }
 
-    pub fn run(&self) -> Result<(), anyhow::Error> {
+    pub fn run(&mut self) -> Result<(), anyhow::Error> {
         match &self.command_type {
             Some(CommandType::Builtin(b)) => match b {
                 Builtins::Exit => process::exit(0),
@@ -90,13 +95,13 @@ impl<'a> ShellCommand<'a> {
         }
     }
 
-    fn handle_directory_change(&self) -> Result<(), anyhow::Error> {
+    fn handle_directory_change(&self) -> Result<()> {
         match self.args.len() {
-            0 => env::set_current_dir("/home")?,
+            0 => env::set_current_dir(fetch_home_path()?)?,
             1 => {
                 let current_directory = env::current_dir()?;
-                let arg = match self.args[0] {
-                    "~" => env::home_dir().unwrap().display().to_string(),
+                let arg = match self.args[0].as_str() {
+                    "~" => fetch_home_path()?.display().to_string(),
                     _ if self.args[0].starts_with("./") => {
                         current_directory.display().to_string() + "/" + &self.args[0][2..]
                     }
@@ -148,4 +153,39 @@ impl<'a> ShellCommand<'a> {
 
         None
     }
+
+    fn tokenize_args(args_str: &str) -> Vec<String> {
+        let mut in_single_quotes = false;
+        let mut buffer: Vec<char> = vec![];
+        let mut args: Vec<String> = vec![];
+
+        for ch in args_str.chars() {
+            match ch {
+                '\'' => {
+                    in_single_quotes = !in_single_quotes;
+                }
+                ' ' => {
+                    if in_single_quotes {
+                        buffer.push(ch);
+                    } else if !buffer.is_empty() {
+                        args.push(buffer.iter().collect());
+                        buffer.clear();
+                    }
+                }
+                _ => {
+                    buffer.push(ch);
+                }
+            }
+        }
+
+        if !buffer.is_empty() {
+            args.push(buffer.iter().collect());
+        }
+
+        args
+    }
+}
+
+fn fetch_home_path() -> Result<PathBuf> {
+    env::home_dir().ok_or_else(|| anyhow!("Failed to open home directory..."))
 }
