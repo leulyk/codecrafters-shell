@@ -94,7 +94,26 @@ impl<'a> ShellCommand<'a> {
         match self.args.len() {
             0 => env::set_current_dir("/home")?,
             1 => {
-                env::set_current_dir(self.args[0]).unwrap_or_else(|_| {
+                let current_directory = env::current_dir()?;
+                let arg = match self.args[0] {
+                    "~" => env::home_dir().unwrap().display().to_string(),
+                    _ if self.args[0].starts_with("./") => {
+                        current_directory.display().to_string() + "/" + &self.args[0][2..]
+                    }
+                    _ if self.args[0].starts_with("../") => {
+                        let mut parent_index = 3;
+                        let mut parent = current_directory.parent().unwrap();
+                        while self.args[0][parent_index..].starts_with("../") {
+                            parent = parent.parent().unwrap();
+                            parent_index += 3;
+                        }
+                        parent.display().to_string() + "/" + &self.args[0][parent_index..]
+                    }
+                    _ if self.args[0].starts_with("/") => self.args[0].to_string(),
+                    _ => current_directory.display().to_string() + "/" + &self.args[0],
+                };
+
+                env::set_current_dir(arg).unwrap_or_else(|_| {
                     println!("cd: {}: No such file or directory", self.args[0])
                 });
             }
