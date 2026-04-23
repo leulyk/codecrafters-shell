@@ -157,11 +157,19 @@ impl<'a> ShellCommand<'a> {
     fn tokenize_args(args_str: &str) -> Vec<String> {
         let mut in_single_quotes = false;
         let mut in_double_quotes = false;
+        let mut escaping = false;
         let mut buffer: Vec<char> = vec![];
         let mut args: Vec<String> = vec![];
 
         for ch in args_str.chars() {
+            if escaping {
+                buffer.push(ch);
+                escaping = false;
+                continue;
+            }
+
             match ch {
+                '\\' => escaping = true,
                 '\'' => {
                     if in_double_quotes {
                         buffer.push(ch);
