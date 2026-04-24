@@ -10,8 +10,8 @@ use std::{
 const BUILTINS: [&str; 5] = ["exit", "echo", "type", "pwd", "cd"];
 const SPECIAL_CHARS: [char; 5] = ['"', '\\', '$', '`', '\n'];
 
-pub struct ShellCommand<'a> {
-    command: &'a str,
+pub struct ShellCommand {
+    command: String,
     args: Vec<String>,
     command_type: Option<CommandType>,
 }
@@ -29,17 +29,14 @@ pub enum Builtins {
     Cd,
 }
 
-impl<'a> ShellCommand<'a> {
-    pub fn new(input: &'a str) -> Self {
-        let command_delim_index = input.find(" ");
-        let command = &input[..command_delim_index.unwrap_or(input.len())];
-        let args = match command_delim_index {
-            Some(index) => Self::tokenize_args(&input[index + 1..]),
-            None => vec![],
-        };
+impl ShellCommand {
+    pub fn new(input: &str) -> Self {
+        let mut tokens = Self::tokenize(input).into_iter();
+        let command = tokens.next().unwrap_or("".to_owned());
+        let args = tokens.collect();
 
-        let command_type = if BUILTINS.contains(&command) {
-            match command {
+        let command_type = if BUILTINS.contains(&command.as_ref()) {
+            match command.as_ref() {
                 "cd" => Some(CommandType::Builtin(Builtins::Cd)),
                 "pwd" => Some(CommandType::Builtin(Builtins::Pwd)),
                 "exit" => Some(CommandType::Builtin(Builtins::Exit)),
@@ -47,7 +44,7 @@ impl<'a> ShellCommand<'a> {
                 "type" => Some(CommandType::Builtin(Builtins::Type)),
                 _ => None,
             }
-        } else if Self::is_executable(command).is_some() {
+        } else if Self::is_executable(&command).is_some() {
             Some(CommandType::Executable)
         } else {
             None
@@ -70,7 +67,7 @@ impl<'a> ShellCommand<'a> {
                 Builtins::Cd => self.handle_directory_change()?,
             },
             Some(CommandType::Executable) => {
-                Command::new(self.command).args(&self.args).status()?;
+                Command::new(&self.command).args(&self.args).status()?;
             }
             None => println!("{}: command not found", self.command),
         };
@@ -155,7 +152,7 @@ impl<'a> ShellCommand<'a> {
         None
     }
 
-    fn tokenize_args(args_str: &str) -> Vec<String> {
+    fn tokenize(args_str: &str) -> Vec<String> {
         let mut in_single_quotes = false;
         let mut in_double_quotes = false;
         let mut escaping = false;
