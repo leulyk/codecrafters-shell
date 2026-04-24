@@ -8,6 +8,7 @@ use std::{
 };
 
 const BUILTINS: [&str; 5] = ["exit", "echo", "type", "pwd", "cd"];
+const SPECIAL_CHARS: [char; 5] = ['"', '\\', '$', '`', '\n'];
 
 pub struct ShellCommand<'a> {
     command: &'a str,
@@ -163,13 +164,22 @@ impl<'a> ShellCommand<'a> {
 
         for ch in args_str.chars() {
             if escaping {
+                if in_double_quotes && !SPECIAL_CHARS.contains(&ch) {
+                    buffer.push('\\');
+                }
                 buffer.push(ch);
                 escaping = false;
                 continue;
             }
 
             match ch {
-                '\\' => escaping = true,
+                '\\' => {
+                    if in_single_quotes {
+                        buffer.push(ch);
+                    } else {
+                        escaping = true;
+                    }
+                }
                 '\'' => {
                     if in_double_quotes {
                         buffer.push(ch);
